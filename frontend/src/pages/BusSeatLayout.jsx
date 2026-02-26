@@ -192,7 +192,7 @@ const BusSeatLayout = () => {
             <div className="max-w-6xl mx-auto grid lg:grid-cols-12 gap-8">
                 <div className={`lg:col-span-7 bg-gray-50 dark:bg-neutral-900 p-8 rounded-[2.5rem] border dark:border-neutral-800 transition-all ${step === 2 ? 'opacity-30 pointer-events-none' : ''}`}>
                     <div className="flex justify-between items-center mb-10">
-                        <div className="text-[10px] font-black bg-neutral-200 dark:bg-neutral-800 px-3 py-1 rounded">LAYOUT</div>
+                        <div className="text-[10px] font-black bg-neutral-200 dark:bg-neutral-800 px-3 py-1 rounded">FRONT</div>
                         <div className="flex gap-4">
                             <Legend color="bg-white" label="Free" />
                             <Legend color="bg-red-600" label="Selected" />
@@ -219,7 +219,7 @@ const BusSeatLayout = () => {
                                 )}
                                 {cell.type === 'driver' && (
                                     <div className="w-full h-full rounded-xl flex items-center justify-center bg-neutral-200 dark:bg-neutral-800 text-neutral-500">
-                                        <SteeringWheel size={20} />
+                                        Driver
                                     </div>
                                 )}
                                 {cell.type === 'door' && <DoorOpen size={20} className="text-neutral-300 dark:text-neutral-700" />}

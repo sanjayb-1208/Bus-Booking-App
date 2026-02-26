@@ -1,0 +1,24 @@
+# Use Python 3.12
+FROM python:3.12-slim
+
+# Install uv directly from the official binary
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Set the working directory
+WORKDIR /app
+
+# Copy dependency files (pyproject.toml and uv.lock)
+COPY pyproject.toml uv.lock ./
+
+# Install dependencies using uv
+# --frozen ensures it uses the exact versions in your uv.lock
+RUN uv sync --frozen --no-dev
+
+# Copy the rest of the backend code
+COPY . .
+
+# Expose FastAPI port
+EXPOSE 8000
+
+# Run the app using 'uv run' to ensure the virtual environment is used
+CMD ["uv", "run", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000"]

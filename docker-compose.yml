@@ -1,0 +1,41 @@
+services:
+  # 1. Redis: The Message Broker for Celery
+  redis:
+    image: redis:alpine
+    container_name: bus_redis
+    ports:
+      - "6379:6379"
+
+  # 2. Backend: FastAPI Application
+  backend:
+    build: ./backend
+    container_name: bus_backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - redis
+
+  # 3. Worker: Celery Task Processor
+  worker:
+    build: ./backend
+    container_name: bus_worker
+    # No need for -P solo here because Docker runs on Linux!
+    command: uv run celery -A src.celery_worker.celery_app worker --loglevel=info
+    env_file:
+      - ./backend/.env
+    depends_on:
+      - redis
+      - backend
+
+  # 4. Frontend: React/Vite Application
+  frontend:
+    build: ./frontend
+    container_name: bus_frontend
+    ports:
+      - "5173:5173"
+    env_file:
+      - ./frontend/.env
+    depends_on:
+      - backend
