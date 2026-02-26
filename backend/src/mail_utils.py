@@ -13,7 +13,10 @@ from .database import SessionLocal
 from . import models
 
 def generate_qr_code(data):
-    """Generates a QR code image as bytes"""
+    """
+    Generates a QR code image as a byte stream.
+    Used for embedding PNR numbers into boarding passes.
+    """
     qr = qrcode.QRCode(version=1, box_size=10, border=2)
     qr.add_data(data)
     qr.make(fit=True)
@@ -25,23 +28,26 @@ def generate_qr_code(data):
     return img_byte_arr
 
 def generate_pdf(bookings):
-    """Generates a PDF for a group of bookings (PNR) with a QR code"""
+    """
+    Creates a branded PDF boarding pass using ReportLab.
+    Includes trip details, seat numbers, and a scannable QR code.
+    """
     buffer = io.BytesIO()
     c = canvas.Canvas(buffer, pagesize=A6)
     width, height = A6
 
-    # Header Background
+    # Header Background - Black bar
     c.setFillColor(colors.black)
     c.rect(0, height - 60, width, 60, fill=1)
 
-    # Logo Text
+    # Logo Text - ABC TRAVELS branding
     c.setFont("Helvetica-Bold", 16)
     c.setFillColor(colors.white)
     c.drawString(20, height - 35, "ABC")
     c.setFillColor(colors.red)
     c.drawString(58, height - 35, "TRAVELS")
 
-    # Content
+    # Content Separator
     c.setStrokeColor(colors.lightgrey)
     c.setLineWidth(1)
     c.line(20, height - 80, width - 20, height - 80)
@@ -50,6 +56,7 @@ def generate_pdf(bookings):
     c.setFont("Helvetica-Bold", 12)
     c.drawString(20, height - 110, "BOARDING PASS")
 
+    # Data aggregation for multiple seats under one PNR
     main_booking = bookings[0]
     seat_list = ", ".join([str(b.seat.seat_number) for b in bookings])
     
@@ -61,6 +68,7 @@ def generate_pdf(bookings):
         ("DEPARTURE", main_booking.trip.departure_time.strftime('%d %b %Y, %I:%M %p'))
     ]
 
+    # Iteratively draw labels and values
     y_pos = height - 140
     for label, value in details:
         c.setFont("Helvetica-Bold", 8)
@@ -72,12 +80,12 @@ def generate_pdf(bookings):
         c.drawString(20, y_pos - 15, value)
         y_pos -= 45
 
-    # QR Code
+    # Generate and draw the QR Code on the ticket
     qr_img_bytes = generate_qr_code(main_booking.booking_number)
     qr_img = ImageReader(qr_img_bytes)
     c.drawImage(qr_img, width - 80, 70, width=60, height=60)
 
-    # Footer
+    # Footer section
     c.setDash(1, 2)
     c.line(20, 60, width - 20, 60)
     c.setDash()
@@ -92,10 +100,14 @@ def generate_pdf(bookings):
     return buffer.getvalue()
 
 async def send_booking_email_async(email_to: str, booking_number: str):
-    """Internal async function to handle the actual sending"""
+    """
+    Core logic for processing booking notifications.
+    Fetches data, generates PDF, and sends emails to both User and Admin.
+    """
     db = SessionLocal()
     temp_path = None
     try:
+        # Retrieve all seats associated with the PNR
         bookings = db.query(models.Booking).filter(
             models.Booking.booking_number == booking_number
         ).all()
@@ -107,13 +119,13 @@ async def send_booking_email_async(email_to: str, booking_number: str):
         seat_list = ", ".join([str(b.seat.seat_number) for b in bookings])
         admin_email = os.getenv("ADMIN_EMAIL")
 
-        # 1. Generate PDF and save to temp file
+        # 1. Generate PDF and store in a temporary file system location
         pdf_bytes = generate_pdf(bookings)
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as temp_file:
             temp_file.write(pdf_bytes)
             temp_path = temp_file.name
 
-        # 2. Professional HTML for User
+        # 2. Professional HTML Template for the Customer
         user_html = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; border: 1px solid #eee; border-radius: 20px; overflow: hidden;">
             <div style="background: #000; padding: 20px; text-align: center;">
@@ -134,7 +146,7 @@ async def send_booking_email_async(email_to: str, booking_number: str):
         </div>
         """
 
-        # 3. Professional HTML for Admin
+        # 3. Notification HTML Template for the Administrator
         admin_html = f"""
         <div style="font-family: sans-serif; padding: 20px; border: 1px solid #ddd;">
             <h2 style="color: #dc2626;">New Revenue Alert</h2>
@@ -149,7 +161,7 @@ async def send_booking_email_async(email_to: str, booking_number: str):
 
         fm = FastMail(conf)
 
-        # Send User Email
+        # Dispatch confirmation email to User with PDF attachment
         user_msg = MessageSchema(
             subject=f"Trip Confirmation: {trip.source} to {trip.destination}",
             recipients=[email_to],
@@ -159,7 +171,7 @@ async def send_booking_email_async(email_to: str, booking_number: str):
         )
         await fm.send_message(user_msg)
 
-        # Send Admin Email
+        # Dispatch notification to Admin
         if admin_email:
             admin_msg = MessageSchema(
                 subject=f"NEW BOOKING - {booking_number}",
@@ -176,11 +188,15 @@ async def send_booking_email_async(email_to: str, booking_number: str):
         raise e
     finally:
         db.close()
+        # Ensure temporary file is deleted after sending to free up disk space
         if temp_path and os.path.exists(temp_path):
             os.remove(temp_path)
 
 def send_booking_email_sync(email_to: str, booking_number: str):
-    """Sync wrapper for Celery Solo Worker"""
+    """
+    Synchronous wrapper for asynchronous email dispatch.
+    Typically used for Celery workers or non-async task queues.
+    """
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
