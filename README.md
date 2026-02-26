@@ -43,3 +43,7 @@ SECRET_KEY=your_jwt_secret_key
 MAIL_USERNAME=your_email@gmail.com
 MAIL_PASSWORD=your_app_password
 ADMIN_EMAIL=admin@example.com
+
+Create a `.env` file in the `backend/` directory. **Do not commit this file.** Use the following template:
+```env
+VITE_BACKEND_URL=http://localhost:8000
