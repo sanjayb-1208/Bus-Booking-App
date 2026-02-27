@@ -7,17 +7,23 @@ import { toast } from "react-toastify";
 
 const Dashboard = () => {
     const navigate = useNavigate();
-    const { user } = useContext(AuthContext);
+    const { user, loading: authLoading } = useContext(AuthContext);
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Initial Auth Guard
+    // Initial Auth Guard - Modified to prevent reload kick-out
     useEffect(() => {
-        if (!user || !user.is_admin) {
+        const token = localStorage.getItem('token');
+        
+        // Only redirect if auth check is finished, no user found, and no token exists
+        if (!authLoading && !user && !token) {
+            toast.error("Session expired. Please login again.");
+            navigate("/");
+        } else if (!authLoading && user && !user.is_admin) {
             toast.error("You are not authorized to access this page");
             navigate("/");
         }
-    }, [user, navigate]);
+    }, [user, navigate, authLoading]);
 
     useEffect(() => {
         const fetchAll = async () => {
@@ -26,24 +32,35 @@ const Dashboard = () => {
                 setData(res.data);
             } catch (e) { 
                 console.error("Dashboard Fetch Error:", e);
-                toast.error("Failed to load analytics data");
+                // Don't toast error if it's just a 401 during reload sync
+                if (e.response?.status !== 401) {
+                    toast.error("Failed to load analytics data");
+                }
             } finally { 
                 setLoading(false); 
             }
         };
-        if (user?.is_admin) fetchAll();
+
+        // Fetch if user is admin or if we have a token (assuming backend will validate token)
+        if (user?.is_admin || localStorage.getItem('token')) {
+            fetchAll();
+        }
     }, [user]);
 
-    if (loading) return (
+    // Show loading state while Auth is checking or Data is fetching
+    if (authLoading || loading) return (
         <div className="h-screen flex items-center justify-center dark:bg-black font-black uppercase tracking-widest dark:text-white">
-            Analyzing Data...
+            Authenticating & Analyzing Data...
         </div>
     );
 
     if (!data) return null;
 
+    // Scaling factor for chart
+    const maxAmount = Math.max(...data.trend.map(d => d.amount), 1);
+
     return (
-        <div className="min-h-screen bg-[#fcfcfc] dark:bg-black p-4 md:p-10">
+        <div className="min-h-screen bg-[#fcfcfc] dark:bg-black p-4 md:p-10 transition-colors duration-500">
             <div className="max-w-7xl mx-auto">
                 <header className="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-4">
                     <div>
@@ -63,16 +80,15 @@ const Dashboard = () => {
                     </div>
                 </header>
 
-                {/* Top Metrics Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
                     <MiniCard icon={<DollarSign size={20}/>} label="Weekly Rev" value={`₹${data.metrics.revenue}`} trend="+12%" />
                     <MiniCard icon={<Users size={20}/>} label="Total Users" value={data.metrics.users} trend="+5%" />
-                    <MiniCard icon={<Activity size={20}/>} label="Occupancy" value={`${data.metrics.occupancy}%`} trend="Stable" />
+                    <MiniCard icon={<Activity size={20}/>} label="Occupancy" value={`${(data.metrics.occupancy * 100).toFixed(1)}%`} trend="Stable" />
                     <MiniCard icon={<Bus size={20}/>} label="Active Buses" value={data.bus_performance.length} trend="Live" />
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Revenue Bar Chart Representation */}
+                    {/* Revenue Bar Chart */}
                     <div className="lg:col-span-2 bg-white dark:bg-neutral-900 p-8 rounded-[3rem] border dark:border-neutral-800 shadow-xl">
                         <div className="flex items-center justify-between mb-8">
                             <h3 className="text-lg font-black dark:text-white uppercase italic flex items-center gap-2">
@@ -85,20 +101,17 @@ const Dashboard = () => {
                         
                         <div className="flex items-end justify-between h-48 gap-2 px-2">
                             {data.trend.map((day, i) => {
-                                const maxAmount = Math.max(...data.trend.map(d => d.amount));
-                                // Calculate height: if 0, show a small sliver (5%) so the day is identifiable
-                                const barHeight = maxAmount > 0 ? (day.amount / maxAmount) * 100 : 5;
+                                const barHeight = (day.amount / maxAmount) * 100;
 
                                 return (
-                                    <div key={i} className="flex-1 flex flex-col items-center gap-3 group">
+                                    <div key={i} className="flex-1 flex flex-col items-center gap-3 group h-full justify-end">
                                         <div className="relative w-full flex flex-col items-center justify-end h-full">
-                                            {/* Tooltip on hover */}
                                             <span className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-black dark:bg-white dark:text-black text-white text-[10px] font-bold px-2 py-1 rounded transition-opacity whitespace-nowrap z-10">
                                                 ₹{day.amount}
                                             </span>
                                             <div 
                                                 className="w-full bg-red-600 rounded-t-xl transition-all duration-700 ease-out group-hover:bg-black dark:group-hover:bg-neutral-400" 
-                                                style={{ height: `${barHeight}%` }}
+                                                style={{ height: `${Math.max(barHeight, 5)}%` }}
                                             />
                                         </div>
                                         <span className="text-[10px] font-black text-gray-400 uppercase">{day.day}</span>
@@ -123,7 +136,7 @@ const Dashboard = () => {
                                     <div className="w-full h-2 bg-gray-100 dark:bg-neutral-800 rounded-full overflow-hidden">
                                         <div 
                                             className="h-full bg-red-600 transition-all duration-1000" 
-                                            style={{ width: `${(bus.tickets / 40) * 100}%` }} 
+                                            style={{ width: `${Math.min((bus.tickets / 40) * 100, 100)}%` }} 
                                         />
                                     </div>
                                     <p className="text-[9px] font-bold text-gray-400 mt-1 uppercase">
