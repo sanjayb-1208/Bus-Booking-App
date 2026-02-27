@@ -3,6 +3,7 @@
 .vscode/
 .idea/
 *.log
+.git
 
 # --- Environment & Sensitive Data ---
 .env
