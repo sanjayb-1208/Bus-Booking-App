@@ -1,28 +1,40 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from ..database import get_db
-from .. import models, schemas
-import os
-import shutil
-from datetime import datetime, timedelta
 from sqlalchemy import func, desc
+from datetime import datetime, timedelta, time
+from .. import models, database
+from ..database import get_db
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
 
-
-
 @router.get("/analytics")
 def get_advanced_stats(db: Session = Depends(get_db)):
-    # 1. 7-Day Revenue Trend
+    """
+    Fetches system-wide analytics including a 7-day revenue trend,
+    top performing buses, and general system metrics.
+    """
+    # 1. 7-Day Revenue Trend Logic
     today = datetime.now().date()
     revenue_trend = []
+    
     for i in range(6, -1, -1):
-        date = today - timedelta(days=i)
+        target_date = today - timedelta(days=i)
+        
+        # Create start and end of the day timestamps for accurate filtering
+        start_of_day = datetime.combine(target_date, time.min)
+        end_of_day = datetime.combine(target_date, time.max)
+        
+        # Query total revenue specifically for this 24-hour window
         daily_rev = db.query(func.sum(models.Trip.price))\
-            .join(models.Booking)\
-            .filter(func.date(models.Booking.created_at) == date)\
+            .join(models.Booking, models.Trip.id == models.Booking.trip_id)\
+            .filter(models.Booking.created_at >= start_of_day)\
+            .filter(models.Booking.created_at <= end_of_day)\
             .scalar() or 0
-        revenue_trend.append({"day": date.strftime("%a"), "amount": daily_rev})
+            
+        revenue_trend.append({
+            "day": target_date.strftime("%a"), 
+            "amount": float(daily_rev)
+        })
 
     # 2. Bus Performance (Revenue per Bus)
     bus_stats = db.query(
@@ -36,7 +48,8 @@ def get_advanced_stats(db: Session = Depends(get_db)):
 
     # 3. Quick Metrics
     total_users = db.query(func.count(models.User.id)).scalar()
-    occupancy_rate = 85.5 # Mock logic: total_bookings / (total_trips * 40) * 100
+    # Mock occupancy calculation or actual logic based on seat availability
+    occupancy_rate = 85.5 
 
     return {
         "trend": revenue_trend,
