@@ -5,21 +5,6 @@
 *.log
 .git
 
-# --- Environment & Sensitive Data ---
-.env
-.env.local
-backend/.env
-frontend/.env
-
-# --- Backend (Python/FastAPI) ---
-backend/__pycache__/
-backend/*.py[cod]
-backend/venv/
-backend/.venv/
-backend/env/
-backend/.pytest_cache/
-backend/*.db
-backend/sql_app.db
 
 # --- Frontend (Node/React/Vite) ---
 frontend/node_modules/
