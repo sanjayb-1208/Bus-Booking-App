@@ -16,3 +16,9 @@ frontend/yarn-debug.log*
 # --- Docker & Celery ---
 celerybeat-schedule
 .docker/
+
+# --- Environment Variables (Credentials) ---
+.env
+*.env
+backend/.env
+frontend/.env
